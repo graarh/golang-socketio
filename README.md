@@ -3,7 +3,7 @@ golang socket.io
 
 golang implementation of [socket.io](http://socket.io) library, client and server
 
-You can check working chat server, based on this library, at (funstream)[http://funstream.tv]
+You can check working chat server, based on this library, at http://funstream.tv
 
 Examples directory contains simple client and server.
 
