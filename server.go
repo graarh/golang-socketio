@@ -7,12 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"funstream/libs/socket.io/transport"
+	"github.com/graarh/golang-socketio/protocol"
+	"github.com/graarh/golang-socketio/transport"
 	"math/rand"
 	"net/http"
 	"sync"
 	"time"
-	"funstream/libs/socket.io/protocol"
 )
 
 var (

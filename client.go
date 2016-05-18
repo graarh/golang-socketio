@@ -1,7 +1,7 @@
 package gosocketio
 
 import (
-	"funstream/libs/socket.io/transport"
+	"github.com/graarh/golang-socketio/transport"
 )
 
 const (
