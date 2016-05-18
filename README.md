@@ -61,7 +61,7 @@ var socket = io('ws://yourdomain.com', {transports: ['websocket']});
         //send something
         socket.emit('send', {name: "my name", message: "hello"}, function(result) {
 
-            console.log('sended successfully);
+            console.log('sended successfully');
             console.log(result);
         });
     });
