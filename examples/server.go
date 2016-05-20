@@ -1,8 +1,8 @@
 package main
 
 import (
-	"funstream/libs/socket.io"
-	"funstream/libs/socket.io/transport"
+	"github.com/graarh/golang-socketio"
+	"github.com/graarh/golang-socketio/transport"
 	"log"
 	"net/http"
 	"time"
