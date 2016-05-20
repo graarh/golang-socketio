@@ -37,7 +37,7 @@ type Transport interface {
 	/**
 	Get client connection
 	*/
-	Connect(host string) (conn Connection, err error)
+	Connect(url string) (conn Connection, err error)
 
 	/**
 	Handle one server connection

@@ -31,7 +31,9 @@ func sendJoin(c *gosocketio.Client) {
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	c, err := gosocketio.Dial("localhost:3811", transport.GetDefaultWebsocketTransport())
+	c, err := gosocketio.Dial(
+		gosocketio.GetUrl("localhost", 3811, false),
+		transport.GetDefaultWebsocketTransport())
 	if err != nil {
 		log.Fatal(err)
 	}

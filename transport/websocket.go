@@ -9,8 +9,6 @@ import (
 )
 
 const (
-	webSocketProtocol = "ws://"
-	socketioUrl       = "/socket.io/?EIO=3&transport=websocket"
 	upgradeFailed     = "Upgrade failed: "
 
 	WsDefaultPingInterval   = 30 * time.Second
@@ -92,9 +90,9 @@ type WebsocketTransport struct {
 	BufferSize int
 }
 
-func (wst *WebsocketTransport) Connect(host string) (conn Connection, err error) {
+func (wst *WebsocketTransport) Connect(url string) (conn Connection, err error) {
 	dialer := websocket.Dialer{}
-	socket, _, err := dialer.Dial(webSocketProtocol+host+socketioUrl, nil)
+	socket, _, err := dialer.Dial(url, nil)
 	if err != nil {
 		return nil, err
 	}
