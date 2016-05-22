@@ -6,14 +6,15 @@ import (
 )
 
 type caller struct {
-	Func reflect.Value
-	Args reflect.Type
-	Out  bool
+	Func        reflect.Value
+	Args        reflect.Type
+	ArgsPresent bool
+	Out         bool
 }
 
 var (
 	ErrorCallerNotFunc     = errors.New("f is not function")
-	ErrorCallerNot2Args    = errors.New("f should have 2 args")
+	ErrorCallerNot2Args    = errors.New("f should have 1 or 2 args")
 	ErrorCallerMaxOneValue = errors.New("f should return not more than one value")
 )
 
@@ -28,19 +29,25 @@ func newCaller(f interface{}) (*caller, error) {
 	}
 
 	fType := fVal.Type()
-	if fType.NumIn() != 2 {
-		return nil, ErrorCallerNot2Args
-	}
-
 	if fType.NumOut() > 1 {
 		return nil, ErrorCallerMaxOneValue
 	}
 
-	return &caller{
+	curCaller := &caller{
 		Func: fVal,
-		Args: fType.In(1),
 		Out:  fType.NumOut() == 1,
-	}, nil
+	}
+	if fType.NumIn() == 1 {
+		curCaller.Args = nil
+		curCaller.ArgsPresent = false
+	} else if fType.NumIn() == 2 {
+		curCaller.Args = fType.In(1)
+		curCaller.ArgsPresent = true
+	} else {
+		return nil, ErrorCallerNot2Args
+	}
+
+	return curCaller, nil
 }
 
 /**
@@ -55,6 +62,9 @@ calls function with given arguments from its representation using reflection
 */
 func (c *caller) callFunc(h *Channel, args interface{}) []reflect.Value {
 	a := []reflect.Value{reflect.ValueOf(h), reflect.ValueOf(args).Elem()}
+	if !c.ArgsPresent {
+		a = a[0:1]
+	}
 
 	return c.Func.Call(a)
 }

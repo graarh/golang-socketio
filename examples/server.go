@@ -21,7 +21,7 @@ type Message struct {
 func main() {
 	server := gosocketio.NewServer(transport.GetDefaultWebsocketTransport())
 
-	server.On(gosocketio.OnConnection, func(c *gosocketio.Channel, args interface{}) {
+	server.On(gosocketio.OnConnection, func(c *gosocketio.Channel) {
 		log.Println("Connected")
 
 		c.Emit("/message", Message{10, "main", "using emit"})
@@ -29,12 +29,13 @@ func main() {
 		c.Join("test")
 		c.BroadcastTo("test", "/message", Message{10, "main", "using broadcast"})
 	})
-	server.On(gosocketio.OnDisconnection, func(c *gosocketio.Channel, args interface{}) {
+	server.On(gosocketio.OnDisconnection, func(c *gosocketio.Channel) {
 		log.Println("Disconnected")
 	})
 
 	server.On("/join", func(c *gosocketio.Channel, channel Channel) string {
 		time.Sleep(2 * time.Second)
+		log.Println("Client joined to ", channel.Channel)
 		return "joined to " + channel.Channel
 	})
 

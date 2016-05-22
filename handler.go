@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/graarh/golang-socketio/protocol"
 	"sync"
+	"reflect"
 )
 
 const (
@@ -92,6 +93,11 @@ func (m *methods) processIncomingMessage(c *Channel, msg *protocol.Message) {
 			return
 		}
 
+		if !f.ArgsPresent {
+			f.callFunc(c, &struct{}{})
+			return
+		}
+
 		data := f.getArgs()
 		err := json.Unmarshal([]byte(msg.Args), &data)
 		if err != nil {
@@ -106,13 +112,20 @@ func (m *methods) processIncomingMessage(c *Channel, msg *protocol.Message) {
 			return
 		}
 
-		data := f.getArgs()
-		err := json.Unmarshal([]byte(msg.Args), &data)
-		if err != nil {
-			return
+		var result []reflect.Value
+		if f.ArgsPresent {
+			//data type should be defined for unmarshall
+			data := f.getArgs()
+			err := json.Unmarshal([]byte(msg.Args), &data)
+			if err != nil {
+				return
+			}
+
+			result = f.callFunc(c, data)
+		} else {
+			result = f.callFunc(c, &struct{}{})
 		}
 
-		result := f.callFunc(c, data)
 		ack := &protocol.Message{
 			Type:  protocol.MessageTypeAckResponse,
 			AckId: msg.AckId,

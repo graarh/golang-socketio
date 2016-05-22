@@ -18,7 +18,7 @@ Examples directory contains simple client and server.
 	server := gosocketio.NewServer(transport.GetDefaultWebsocketTransport())
 
 	//handle connected
-	server.On(gosocketio.OnConnection, func(c *gosocketio.Channel, args interface{}) {
+	server.On(gosocketio.OnConnection, func(c *gosocketio.Channel) {
 		log.Println("New client connected")
 		//join them to room
 		c.Join("chat")
@@ -89,7 +89,9 @@ var socket = io('ws://yourdomain.com', {transports: ['websocket']});
 		log.Println(len(channels), "clients in room")
 	})
 	//on disconnection handler, if client hangs connection unexpectedly, it will still occurs
-	server.On(gosocketio.OnDisconnection, func(c *gosocketio.Channel, args interface{}) {
+	//you can omit function args if you do not need them
+	//you can return string value for ack, or return nothing for emit
+	server.On(gosocketio.OnDisconnection, func(c *gosocketio.Channel) {
 		//this is not necessary, client will be removed from rooms
 		//automatically on disconnect
 		//but you can remove client from room whenever you need to
@@ -98,7 +100,7 @@ var socket = io('ws://yourdomain.com', {transports: ['websocket']});
 		log.Println("Disconnected")
 	})
 	//error catching handler
-	server.On(gosocketio.OnError, func(c *gosocketio.Channel, args interface{}) {
+	server.On(gosocketio.OnError, func(c *gosocketio.Channel) {
 		log.Println("Error occurs")
 	})
 
