@@ -107,11 +107,33 @@ func (c *Channel) Leave(room string) error {
 }
 
 /**
+Get amount of channels, joined to given room, using channel
+*/
+func (c *Channel) Amount(room string) int {
+	if c.server == nil {
+		return 0
+	}
+
+	return c.server.Amount(room)
+}
+
+/**
+Get amount of channels, joined to given room, using server
+*/
+func (s *Server) Amount(room string) int {
+	s.channelsLock.RLock()
+	defer s.channelsLock.RUnlock()
+
+	roomChannels, _ := s.channels[room]
+	return len(roomChannels)
+}
+
+/**
 Get list of channels, joined to given room, using channel
 */
-func (c *Channel) List(room string) ([]*Channel, error) {
+func (c *Channel) List(room string) []*Channel {
 	if c.server == nil {
-		return nil, ErrorServerNotSet
+		return []*Channel{}
 	}
 
 	return c.server.List(room)
@@ -120,13 +142,13 @@ func (c *Channel) List(room string) ([]*Channel, error) {
 /**
 Get list of channels, joined to given room, using server
 */
-func (s *Server) List(room string) ([]*Channel, error) {
+func (s *Server) List(room string) []*Channel {
 	s.channelsLock.RLock()
 	defer s.channelsLock.RUnlock()
 
 	roomChannels, ok := s.channels[room]
 	if !ok {
-		return []*Channel{}, nil
+		return []*Channel{}
 	}
 
 	i := 0
@@ -136,7 +158,7 @@ func (s *Server) List(room string) ([]*Channel, error) {
 		i++
 	}
 
-	return roomChannelsCopy, nil
+	return roomChannelsCopy
 
 }
 

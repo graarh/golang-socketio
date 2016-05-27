@@ -85,8 +85,10 @@ var socket = io('ws://yourdomain.com', {transports: ['websocket']});
 		c.Join("room name")
 
 		//of course, you can list the clients in the room, or account them
-		channels, _ := c.List(data.Channel)
-		log.Println(len(channels), "clients in room")
+		channels := c.List(data.Channel)
+		//or check the amount of clients in room
+		amount := c.Amount(data.Channel)
+		log.Println(amount, "clients in room")
 	})
 	//on disconnection handler, if client hangs connection unexpectedly, it will still occurs
 	//you can omit function args if you do not need them
