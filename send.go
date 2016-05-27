@@ -16,12 +16,14 @@ var (
 Send message packet to socket
 */
 func send(msg *protocol.Message, c *Channel, args interface{}) error {
-	json, err := json.Marshal(&args)
-	if err != nil {
-		return err
-	}
+	if args != nil {
+		json, err := json.Marshal(&args)
+		if err != nil {
+			return err
+		}
 
-	msg.Args = string(json)
+		msg.Args = string(json)
+	}
 
 	command, err := protocol.Encode(msg)
 	if err != nil {
