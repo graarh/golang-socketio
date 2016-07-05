@@ -97,6 +97,11 @@ func CloseChannel(c *Channel, m *methods, args ...interface{}) error {
 	c.out <- protocol.CloseMessage
 
 	m.callLoopEvent(c, OnDisconnection)
+
+	overfloodedLock.Lock()
+	delete(overflooded, c)
+	overfloodedLock.Unlock()
+
 	return nil
 }
 
@@ -145,7 +150,7 @@ outgoing messages loop, sends messages from channel to socket
 func outLoop(c *Channel, m *methods) error {
 	for {
 		outBufferLen := len(c.out)
-		if outBufferLen == queueBufferSize {
+		if outBufferLen >= queueBufferSize - 1 {
 			return CloseChannel(c, m, ErrorSocketOverflood)
 		} else if outBufferLen > int(queueBufferSize/2) {
 			overfloodedLock.Lock()
