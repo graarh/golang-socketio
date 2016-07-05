@@ -38,6 +38,13 @@ type Server struct {
 }
 
 /**
+Get ip of socket client
+ */
+func (c *Channel) Ip() string {
+	return c.ip
+}
+
+/**
 Get channel by it's sid
 */
 func (s *Server) GetChannel(sid string) (*Channel, error) {
