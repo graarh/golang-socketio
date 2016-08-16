@@ -61,6 +61,11 @@ func (c *caller) getArgs() interface{} {
 calls function with given arguments from its representation using reflection
 */
 func (c *caller) callFunc(h *Channel, args interface{}) []reflect.Value {
+	//nil is untyped, so use the default empty value of correct type
+	if args == nil {
+		args = c.getArgs()
+	}
+
 	a := []reflect.Value{reflect.ValueOf(h), reflect.ValueOf(args).Elem()}
 	if !c.ArgsPresent {
 		a = a[0:1]
