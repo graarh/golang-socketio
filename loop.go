@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/graarh/golang-socketio/protocol"
 	"github.com/graarh/golang-socketio/transport"
+	"net/http"
 	"sync"
 	"time"
 )
@@ -47,8 +48,9 @@ type Channel struct {
 
 	ack ackProcessor
 
-	server *Server
-	ip     string
+	server        *Server
+	ip            string
+	requestHeader http.Header
 }
 
 /**
@@ -150,7 +152,7 @@ outgoing messages loop, sends messages from channel to socket
 func outLoop(c *Channel, m *methods) error {
 	for {
 		outBufferLen := len(c.out)
-		if outBufferLen >= queueBufferSize - 1 {
+		if outBufferLen >= queueBufferSize-1 {
 			return CloseChannel(c, m, ErrorSocketOverflood)
 		} else if outBufferLen > int(queueBufferSize/2) {
 			overfloodedLock.Lock()

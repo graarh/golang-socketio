@@ -39,9 +39,16 @@ type Server struct {
 
 /**
 Get ip of socket client
- */
+*/
 func (c *Channel) Ip() string {
 	return c.ip
+}
+
+/**
+Get request header of this connection
+*/
+func (c *Channel) RequestHeader() http.Header {
+	return c.requestHeader
 }
 
 /**
@@ -279,7 +286,9 @@ func (s *Server) SendOpenSequence(c *Channel) {
 /**
 Setup event loop for given connection
 */
-func (s *Server) SetupEventLoop(conn transport.Connection, remoteAddr string) {
+func (s *Server) SetupEventLoop(conn transport.Connection, remoteAddr string,
+	requestHeader http.Header) {
+
 	interval, timeout := conn.PingParams()
 	hdr := Header{
 		Sid:          generateNewId(remoteAddr),
@@ -291,6 +300,7 @@ func (s *Server) SetupEventLoop(conn transport.Connection, remoteAddr string) {
 	c := &Channel{}
 	c.conn = conn
 	c.ip = remoteAddr
+	c.requestHeader = requestHeader
 	c.initChannel()
 
 	c.server = s
@@ -313,7 +323,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.SetupEventLoop(conn, r.RemoteAddr)
+	s.SetupEventLoop(conn, r.RemoteAddr, r.Header)
 	s.tr.Serve(w, r)
 }
 
