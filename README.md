@@ -162,3 +162,7 @@ var socket = io('ws://yourdomain.com', {transports: ['websocket']});
 3. http longpoll transport
 4. pure http (short-timed queries) transport
 5. binary format
+
+### Licence
+
+Double licensed under GPL3 and MIT so you can use whichever you please.
