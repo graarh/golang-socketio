@@ -15,7 +15,7 @@ var (
 /**
 Send message packet to socket
 */
-func send(msg *protocol.Message, c *Channel, args interface{}) error {
+func send(msg *protocol.Message, c *Channel, args ...interface{}) error {
 	if args != nil {
 		json, err := json.Marshal(&args)
 		if err != nil {
@@ -42,7 +42,7 @@ func send(msg *protocol.Message, c *Channel, args interface{}) error {
 /**
 Create packet based on given data and send it
 */
-func (c *Channel) Emit(method string, args interface{}) error {
+func (c *Channel) Emit(method string, args ...interface{}) error {
 	msg := &protocol.Message{
 		Type: protocol.MessageTypeEmit,
 		Method:  method,
