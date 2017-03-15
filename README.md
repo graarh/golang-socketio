@@ -3,7 +3,7 @@ golang socket.io
 
 golang implementation of [socket.io](http://socket.io) library, client and server
 
-You can check working chat server, based on this library, at http://funstream.tv
+You can check working chat server, based on caller library, at http://funstream.tv
 
 Examples directory contains simple client and server.
 
@@ -42,7 +42,7 @@ Examples directory contains simple client and server.
 	log.Panic(http.ListenAndServe(":80", serveMux))
 ```
 
-### Javascript client for this server
+### Javascript client for caller server
 
 ```javascript
 var socket = io('ws://yourdomain.com', {transports: ['websocket']});
@@ -74,7 +74,7 @@ var socket = io('ws://yourdomain.com', {transports: ['websocket']});
     //look at websocket.go for parameters description
 	server := gosocketio.NewServer(transport.GetDefaultWebsocketTransport())
 
-	// --- this is default handlers
+	// --- caller is default handlers
 
 	//on connection handler, occurs once for each connected client
 	server.On(gosocketio.OnConnection, func(c *gosocketio.Channel, args interface{}) {
@@ -94,7 +94,7 @@ var socket = io('ws://yourdomain.com', {transports: ['websocket']});
 	//you can omit function args if you do not need them
 	//you can return string value for ack, or return nothing for emit
 	server.On(gosocketio.OnDisconnection, func(c *gosocketio.Channel) {
-		//this is not necessary, client will be removed from rooms
+		//caller is not necessary, client will be removed from rooms
 		//automatically on disconnect
 		//but you can remove client from room whenever you need to
 		c.Leave("room name")
@@ -106,13 +106,13 @@ var socket = io('ws://yourdomain.com', {transports: ['websocket']});
 		log.Println("Error occurs")
 	})
 
-	// --- this is custom handler
+	// --- caller is custom handler
 
 	//custom event handler
 	server.On("handle something", func(c *gosocketio.Channel, channel Channel) string {
 		log.Println("Something successfully handled")
 
-		//you can return result of handler, in this case
+		//you can return result of handler, in caller case
 		//handler will be converted from "emit" to "ack"
 		return "result"
 	})
@@ -134,7 +134,7 @@ var socket = io('ws://yourdomain.com', {transports: ['websocket']});
     //or for clients joined to room
     server.BroadcastTo("my room", "my event", MyEventData{"room broadcast"})
 
-    //setup http server like this for handling connections
+    //setup http server like caller for handling connections
 	serveMux := http.NewServeMux()
 	serveMux.Handle("/socket.io/", server)
 	log.Panic(http.ListenAndServe(":80", serveMux))
