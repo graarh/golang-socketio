@@ -3,8 +3,9 @@ package gosocketio
 import (
 	"encoding/json"
 	"errors"
-	"time"
 	"github.com/graarh/golang-socketio/protocol"
+	"log"
+	"time"
 )
 
 var (
@@ -16,6 +17,13 @@ var (
 Send message packet to socket
 */
 func send(msg *protocol.Message, c *Channel, args interface{}) error {
+	//preventing json/encoding "index out of range" panic
+	defer func() {
+		if r := recover(); r != nil {
+			log.Println("socket.io send panic: ", r)
+		}
+	}()
+
 	if args != nil {
 		json, err := json.Marshal(&args)
 		if err != nil {
@@ -44,8 +52,8 @@ Create packet based on given data and send it
 */
 func (c *Channel) Emit(method string, args interface{}) error {
 	msg := &protocol.Message{
-		Type: protocol.MessageTypeEmit,
-		Method:  method,
+		Type:   protocol.MessageTypeEmit,
+		Method: method,
 	}
 
 	return send(msg, c, args)
@@ -56,9 +64,9 @@ Create ack packet based on given data and send it and receive response
 */
 func (c *Channel) Ack(method string, args interface{}, timeout time.Duration) (string, error) {
 	msg := &protocol.Message{
-		Type: protocol.MessageTypeAckRequest,
-		AckId:   c.ack.getNextId(),
-		Method:  method,
+		Type:   protocol.MessageTypeAckRequest,
+		AckId:  c.ack.getNextId(),
+		Method: method,
 	}
 
 	waiter := make(chan string)
