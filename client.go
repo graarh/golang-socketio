@@ -21,15 +21,15 @@ type Client struct {
 
 /**
 Get ws/wss url by host and port
- */
-func GetUrl(host string, port int, secure bool) string {
+*/
+func GetUrl(host string, port int, secure bool, path string) string {
 	var prefix string
 	if secure {
 		prefix = webSocketSecureProtocol
 	} else {
 		prefix = webSocketProtocol
 	}
-	return prefix + host + ":" + strconv.Itoa(port) + socketioUrl
+	return prefix + host + ":" + strconv.Itoa(port) + path + socketioUrl
 }
 
 /**
