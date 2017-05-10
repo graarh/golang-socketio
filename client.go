@@ -62,5 +62,5 @@ func Dial(url string, tr transport.Transport) (*Client, error) {
 Close client connection
 */
 func (c *Client) Close() {
-	CloseChannel(&c.Channel, &c.methods)
+	closeChannel(&c.Channel, &c.methods)
 }

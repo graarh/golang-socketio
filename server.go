@@ -42,6 +42,15 @@ type Server struct {
 }
 
 /**
+Close current channel
+ */
+func (c *Channel) Close() {
+	if c.server != nil {
+		closeChannel(c, &c.server.methods)
+	}
+}
+
+/**
 Get ip of socket client
 */
 func (c *Channel) Ip() string {
