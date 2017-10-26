@@ -48,9 +48,10 @@ type Channel struct {
 
 	ack ackProcessor
 
-	server        *Server
-	ip            string
-	requestHeader http.Header
+	server         *Server
+	ip             string
+	requestHeader  http.Header
+	requestRequest http.Request
 }
 
 /**
