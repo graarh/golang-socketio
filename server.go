@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/graarh/golang-socketio/protocol"
-	"github.com/graarh/golang-socketio/transport"
+	"github.com/n0needt0/golang-socketio/protocol"
+	"github.com/n0needt0/golang-socketio/transport"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -43,7 +43,7 @@ type Server struct {
 
 /**
 Close current channel
- */
+*/
 func (c *Channel) Close() {
 	if c.server != nil {
 		closeChannel(c, &c.server.methods)
@@ -66,6 +66,13 @@ Get request header of this connection
 */
 func (c *Channel) RequestHeader() http.Header {
 	return c.requestHeader
+}
+
+/**
+Get request uri of this connection
+*/
+func (c *Channel) GetRequest() http.Request {
+	return c.requestRequest
 }
 
 /**
@@ -304,7 +311,7 @@ func (s *Server) SendOpenSequence(c *Channel) {
 Setup event loop for given connection
 */
 func (s *Server) SetupEventLoop(conn transport.Connection, remoteAddr string,
-	requestHeader http.Header) {
+	requestHeader http.Header, requestRequest http.Request) {
 
 	interval, timeout := conn.PingParams()
 	hdr := Header{
@@ -318,6 +325,7 @@ func (s *Server) SetupEventLoop(conn transport.Connection, remoteAddr string,
 	c.conn = conn
 	c.ip = remoteAddr
 	c.requestHeader = requestHeader
+	c.requestRequest = requestRequest
 	c.initChannel()
 
 	c.server = s
@@ -340,7 +348,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.SetupEventLoop(conn, r.RemoteAddr, r.Header)
+	s.SetupEventLoop(conn, r.RemoteAddr, r.Header, *r)
 	s.tr.Serve(w, r)
 }
 

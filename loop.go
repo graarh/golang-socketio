@@ -3,8 +3,8 @@ package gosocketio
 import (
 	"encoding/json"
 	"errors"
-	"github.com/graarh/golang-socketio/protocol"
-	"github.com/graarh/golang-socketio/transport"
+	"github.com/n0needt0/golang-socketio/protocol"
+	"github.com/n0needt0/golang-socketio/transport"
 	"net/http"
 	"sync"
 	"time"
@@ -48,9 +48,10 @@ type Channel struct {
 
 	ack ackProcessor
 
-	server        *Server
-	ip            string
-	requestHeader http.Header
+	server         *Server
+	ip             string
+	requestHeader  http.Header
+	requestRequest http.Request
 }
 
 /**
