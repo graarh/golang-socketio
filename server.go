@@ -278,6 +278,10 @@ func onDisconnectCleanup(c *Channel) {
 		delete(c.server.rooms, c)
 	}
 
+	go deleteSid(c)
+}
+
+func deleteSid(c *Channel) {
 	c.server.sidsLock.Lock()
 	defer c.server.sidsLock.Unlock()
 
