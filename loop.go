@@ -85,15 +85,13 @@ Close channel
 */
 func closeChannel(c *Channel, m *methods, args ...interface{}) error {
 	c.aliveLock.Lock()
-	defer c.aliveLock.Unlock()
-
 	if !c.alive {
 		//already closed
 		return nil
 	}
-
 	c.conn.Close()
 	c.alive = false
+	c.aliveLock.Unlock()
 
 	//clean outloop
 	for len(c.out) > 0 {
