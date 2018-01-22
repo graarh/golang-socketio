@@ -1,6 +1,7 @@
 package gosocketio
 
 import (
+	"net"
 	"github.com/graarh/golang-socketio/transport"
 	"strconv"
 )
@@ -29,7 +30,7 @@ func GetUrl(host string, port int, secure bool) string {
 	} else {
 		prefix = webSocketProtocol
 	}
-	return prefix + host + ":" + strconv.Itoa(port) + socketioUrl
+	return prefix + net.JoinHostPort(host, strconv.Itoa(port)) + socketioUrl
 }
 
 /**
