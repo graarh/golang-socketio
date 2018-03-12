@@ -212,3 +212,8 @@ func Decode(data string) (*Message, error) {
 
 	return msg, nil
 }
+
+func ToArgArray(arg interface{})(i []interface{}) {
+	i = append(i, arg)
+	return i
+}

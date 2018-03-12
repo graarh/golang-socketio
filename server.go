@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/graarh/golang-socketio/protocol"
-	"github.com/graarh/golang-socketio/transport"
+	"github.com/OpenBazaar/golang-socketio/protocol"
+	"github.com/OpenBazaar/golang-socketio/transport"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -214,7 +214,7 @@ func (s *Server) BroadcastTo(room, method string, args interface{}) {
 
 	for cn := range roomChannels {
 		if cn.IsAlive() {
-			go cn.Emit(method, args)
+			go cn.Emit(method, protocol.ToArgArray(args))
 		}
 	}
 }
@@ -228,7 +228,7 @@ func (s *Server) BroadcastToAll(method string, args interface{}) {
 
 	for _, cn := range s.sids {
 		if cn.IsAlive() {
-			go cn.Emit(method, args)
+			go cn.Emit(method, protocol.ToArgArray(args))
 		}
 	}
 }
