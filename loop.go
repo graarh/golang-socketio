@@ -50,7 +50,7 @@ type Channel struct {
 
 	server        *Server
 	ip            string
-	requestHeader http.Header
+	request       *http.Request
 }
 
 /**
