@@ -3,7 +3,7 @@ package gosocketio
 import (
 	"encoding/json"
 	"errors"
-	"github.com/graarh/golang-socketio/protocol"
+	"github.com/gsocket-io/golang-socketio/protocol"
 	"log"
 	"time"
 )
