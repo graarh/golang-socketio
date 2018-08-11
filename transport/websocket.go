@@ -82,18 +82,19 @@ func (wsc *WebsocketConnection) PingParams() (interval, timeout time.Duration) {
 }
 
 type WebsocketTransport struct {
-	PingInterval   time.Duration
-	PingTimeout    time.Duration
-	ReceiveTimeout time.Duration
-	SendTimeout    time.Duration
-
+	PingInterval     time.Duration
+	PingTimeout      time.Duration
+	ReceiveTimeout   time.Duration
+	SendTimeout      time.Duration
+	HandshakeTimeout time.Duration
+	
 	BufferSize int
 
 	RequestHeader http.Header
 }
 
 func (wst *WebsocketTransport) Connect(url string) (conn Connection, err error) {
-	dialer := websocket.Dialer{}
+	dialer := websocket.Dialer{HandshakeTimeout: wst.HandShakeTimeout}
 	socket, _, err := dialer.Dial(url, wst.RequestHeader)
 	if err != nil {
 		return nil, err
