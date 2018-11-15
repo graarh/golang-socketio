@@ -20,6 +20,11 @@ type Connection interface {
 	WriteMessage(message string) error
 
 	/**
+	Send binary message with event, block until sent
+	*/
+	WriteBinaryMessage(event string, message []byte) error
+
+	/**
 	Close current connection
 	*/
 	Close()

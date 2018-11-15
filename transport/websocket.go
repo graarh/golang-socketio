@@ -5,6 +5,7 @@ import (
 	"github.com/gorilla/websocket"
 	"io/ioutil"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -25,6 +26,8 @@ var (
 	ErrorMethodNotAllowed  = errors.New("Method not allowed")
 	ErrorHttpUpgradeFailed = errors.New("Http upgrade failed")
 )
+
+var socketMu sync.Mutex
 
 type WebsocketConnection struct {
 	socket    *websocket.Conn
@@ -58,6 +61,9 @@ func (wsc *WebsocketConnection) GetMessage() (message string, err error) {
 }
 
 func (wsc *WebsocketConnection) WriteMessage(message string) error {
+	socketMu.Lock()
+	defer socketMu.Unlock()
+
 	wsc.socket.SetWriteDeadline(time.Now().Add(wsc.transport.SendTimeout))
 	writer, err := wsc.socket.NextWriter(websocket.TextMessage)
 	if err != nil {
@@ -70,6 +76,25 @@ func (wsc *WebsocketConnection) WriteMessage(message string) error {
 	if err := writer.Close(); err != nil {
 		return err
 	}
+	return nil
+}
+
+func (wsc *WebsocketConnection) WriteBinaryMessage(event string, message []byte) error {
+	socketMu.Lock()
+	defer socketMu.Unlock()
+
+	wsc.socket.SetWriteDeadline(time.Now().Add(wsc.transport.SendTimeout))
+
+	if err := wsc.socket.WriteMessage(websocket.TextMessage, []byte(`451-["` + event + `",{"_placeholder":true,"num":0}]`)); err != nil {
+		return err
+	}
+
+	newMessage := []byte{4}
+	newMessage = append(newMessage, message...)
+	if err := wsc.socket.WriteMessage(websocket.BinaryMessage, newMessage); err != nil {
+		return err
+	}
+
 	return nil
 }
 
