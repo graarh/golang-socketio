@@ -16,7 +16,7 @@ var (
 /**
 Send message packet to socket
 */
-func send(msg *protocol.Message, c *Channel, args interface{}) error {
+func send(msg *protocol.Message, c *Channel, args ...interface{}) error {
 	//preventing json/encoding "index out of range" panic
 	defer func() {
 		if r := recover(); r != nil {
@@ -30,7 +30,9 @@ func send(msg *protocol.Message, c *Channel, args interface{}) error {
 			return err
 		}
 
-		msg.Args = string(json)
+		jsonString := string(json)
+		newString := jsonString[2:len(jsonString)-2]
+		msg.Args = newString
 	}
 
 	command, err := protocol.Encode(msg)
@@ -50,7 +52,7 @@ func send(msg *protocol.Message, c *Channel, args interface{}) error {
 /**
 Create packet based on given data and send it
 */
-func (c *Channel) Emit(method string, args interface{}) error {
+func (c *Channel) Emit(method string, args ...interface{}) error {
 	msg := &protocol.Message{
 		Type:   protocol.MessageTypeEmit,
 		Method: method,
