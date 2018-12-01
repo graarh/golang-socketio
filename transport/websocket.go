@@ -3,9 +3,10 @@ package transport
 import (
 	"errors"
 	"github.com/gorilla/websocket"
-	"io/ioutil"
 	"net/http"
 	"time"
+	"log"
+	"io/ioutil"
 )
 
 const (
@@ -31,9 +32,13 @@ type WebsocketConnection struct {
 	transport *WebsocketTransport
 }
 
+/**
+ * get message from chan.
+ */
 func (wsc *WebsocketConnection) GetMessage() (message string, err error) {
 	wsc.socket.SetReadDeadline(time.Now().Add(wsc.transport.ReceiveTimeout))
 	msgType, reader, err := wsc.socket.NextReader()
+	log.Println("get:", message)
 	if err != nil {
 		return "", err
 	}
@@ -57,9 +62,14 @@ func (wsc *WebsocketConnection) GetMessage() (message string, err error) {
 	return text, nil
 }
 
+/**
+ * transport protocol sending socket.io data
+ */
 func (wsc *WebsocketConnection) WriteMessage(message string) error {
 	wsc.socket.SetWriteDeadline(time.Now().Add(wsc.transport.SendTimeout))
 	writer, err := wsc.socket.NextWriter(websocket.TextMessage)
+	message = message[1:]
+	log.Println("write:", message)
 	if err != nil {
 		return err
 	}
