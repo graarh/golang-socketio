@@ -38,7 +38,6 @@ type WebsocketConnection struct {
 func (wsc *WebsocketConnection) GetMessage() (message string, err error) {
 	wsc.socket.SetReadDeadline(time.Now().Add(wsc.transport.ReceiveTimeout))
 	msgType, reader, err := wsc.socket.NextReader()
-	log.Println("get:", message)
 	if err != nil {
 		return "", err
 	}
@@ -59,6 +58,7 @@ func (wsc *WebsocketConnection) GetMessage() (message string, err error) {
 		return "", ErrorPacketWrong
 	}
 
+	log.Println("get:", text)
 	return text, nil
 }
 
