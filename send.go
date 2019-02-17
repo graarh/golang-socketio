@@ -51,12 +51,21 @@ func send(msg *protocol.Message, c *Channel, args interface{}) error {
 Create packet based on given data and send it
 */
 func (c *Channel) Emit(method string, args interface{}) error {
-	msg := &protocol.Message{
-		Type:   protocol.MessageTypeEmit,
-		Method: method,
-	}
+	switch args.(type) {
+	case []byte:
+		if err := c.conn.WriteBinaryMessage(method, args.([]byte)); err != nil {
+			return err
+		}
 
-	return send(msg, c, args)
+		return nil
+	default:
+		msg := &protocol.Message{
+			Type:   protocol.MessageTypeEmit,
+			Method: method,
+		}
+
+		return send(msg, c, args)
+	}
 }
 
 /**
