@@ -3,9 +3,10 @@ package gosocketio
 import (
 	"encoding/json"
 	"errors"
-	"github.com/verticalops/golang-socketio/protocol"
 	"log"
 	"time"
+
+	"github.com/verticalops/golang-socketio/protocol"
 )
 
 var (
@@ -38,7 +39,7 @@ func send(msg *protocol.Message, c *Channel, args interface{}) error {
 		return err
 	}
 
-	if len(c.out) == queueBufferSize {
+	if len(c.out) == QueueBufferSize {
 		return ErrorSocketOverflood
 	}
 

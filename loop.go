@@ -11,11 +11,11 @@ import (
 	"github.com/verticalops/golang-socketio/transport"
 )
 
-const (
-	queueBufferSize = 500
-)
-
 var (
+	//QueueBufferSize is the global buffer size for all internal channels and messages.
+	//It should only be changed before using anything from this package and cannot be changed concurrently.
+	QueueBufferSize = 50
+
 	ErrorWrongHeader = errors.New("Wrong header")
 )
 
@@ -59,7 +59,7 @@ create channel, map, and set active
 */
 func (c *Channel) initChannel() {
 	//TODO: queueBufferSize from constant to server or client variable
-	c.out = make(chan string, queueBufferSize)
+	c.out = make(chan string, QueueBufferSize)
 	c.ack.resultWaiters = make(map[int](chan string))
 	c.alive = true
 }
@@ -154,9 +154,9 @@ outgoing messages loop, sends messages from channel to socket
 func outLoop(c *Channel, m *methods) error {
 	for {
 		outBufferLen := len(c.out)
-		if outBufferLen >= queueBufferSize-1 {
+		if outBufferLen >= QueueBufferSize-1 {
 			return closeChannel(c, m, ErrorSocketOverflood)
-		} else if outBufferLen > int(queueBufferSize/2) {
+		} else if outBufferLen > int(QueueBufferSize/2) {
 			overfloodedLock.Lock()
 			overflooded[c] = struct{}{}
 			overfloodedLock.Unlock()
