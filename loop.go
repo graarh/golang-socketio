@@ -3,11 +3,12 @@ package gosocketio
 import (
 	"encoding/json"
 	"errors"
-	"github.com/verticalops/golang-socketio/protocol"
-	"github.com/verticalops/golang-socketio/transport"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/verticalops/golang-socketio/protocol"
+	"github.com/verticalops/golang-socketio/transport"
 )
 
 const (
@@ -135,7 +136,6 @@ func inLoop(c *Channel, m *methods) error {
 			go m.processIncomingMessage(c, msg)
 		}
 	}
-	return nil
 }
 
 var overflooded map[*Channel]struct{} = make(map[*Channel]struct{})
@@ -176,7 +176,6 @@ func outLoop(c *Channel, m *methods) error {
 			return closeChannel(c, m, err)
 		}
 	}
-	return nil
 }
 
 /**
