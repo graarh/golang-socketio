@@ -298,20 +298,29 @@ func deleteSid(c *Channel) {
 	c.server.sidsLock.Unlock()
 }
 
-func (s *Server) SendOpenSequence(c *Channel) {
+func (s *Server) SendOpenSequence(c *Channel) error {
 	jsonHdr, err := json.Marshal(&c.header)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	c.out <- protocol.MustEncode(
-		&protocol.Message{
-			Type: protocol.MessageTypeOpen,
-			Args: string(jsonHdr),
-		},
-	)
+	msg, err := protocol.Encode(&protocol.Message{
+		Type: protocol.MessageTypeOpen,
+		Args: string(jsonHdr),
+	})
+	if err != nil {
+		return err
+	}
 
-	c.out <- protocol.MustEncode(&protocol.Message{Type: protocol.MessageTypeEmpty})
+	c.sendOut(msg)
+
+	msg, err = protocol.Encode(&protocol.Message{Type: protocol.MessageTypeEmpty})
+	if err != nil {
+		return err
+	}
+
+	c.sendOut(msg)
+	return nil
 }
 
 /**
@@ -340,7 +349,11 @@ func (s *Server) SetupEventLoop(conn transport.Connection, remoteAddr string,
 	c.rh = s.rh
 	c.eh = s.eh
 
-	s.SendOpenSequence(c)
+	if err := s.SendOpenSequence(c); err != nil {
+		s.eh.call(err)
+		closeChannel(c, &s.methods, err)
+		return
+	}
 
 	go inLoop(c, &s.methods)
 	go outLoop(c, &s.methods)
