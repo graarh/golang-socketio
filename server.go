@@ -43,6 +43,10 @@ type Server struct {
 
 	tr transport.Transport
 
+	//an attempt to stop bad code from being bad
+	rh RecoveryHandler
+	eh ErrorHandler
+
 	//for graceful shutdown
 	done chan struct{}
 	//counting the number of goroutines we've spawned
@@ -377,7 +381,7 @@ func (s *Server) AmountOfRooms() int64 {
 /**
 Create new socket.io server
 */
-func NewServer(tr transport.Transport) *Server {
+func NewServer(tr transport.Transport, opts ...ServerOption) *Server {
 	s := Server{}
 	s.initMethods()
 	s.tr = tr
@@ -388,6 +392,10 @@ func NewServer(tr transport.Transport) *Server {
 	s.onDisconnection = onDisconnectCleanup
 	s.done = make(chan struct{})
 	s.count = new(int64)
+
+	for _, opt := range opts {
+		opt(&s)
+	}
 
 	return &s
 }
