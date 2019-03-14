@@ -349,14 +349,15 @@ func (s *Server) SetupEventLoop(conn transport.Connection, remoteAddr string,
 	c.rh = s.rh
 	c.eh = s.eh
 
+	go outLoop(c, &s.methods)
+
 	if err := s.SendOpenSequence(c); err != nil {
 		s.eh.call(err)
-		closeChannel(c, &s.methods, err)
+		closeChannel(c, &s.methods)
 		return
 	}
 
 	go inLoop(c, &s.methods)
-	go outLoop(c, &s.methods)
 
 	s.callLoopEvent(c, OnConnection)
 }

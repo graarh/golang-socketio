@@ -135,7 +135,11 @@ func (m *methods) processIncomingMessage(c *Channel, msg *protocol.Message) {
 	case protocol.MessageTypeAckResponse:
 		waiter, err := c.ack.getWaiter(msg.AckId)
 		if err == nil {
-			waiter <- msg.Args
+			select {
+			case waiter <- msg.Args:
+			case <-c.done:
+			case <-c.aliveC:
+			}
 		}
 	}
 }

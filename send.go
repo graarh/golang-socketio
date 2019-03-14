@@ -74,6 +74,10 @@ func (c *Channel) Ack(method string, args interface{}, timeout time.Duration) (s
 	}
 
 	select {
+	case <-c.done:
+		return "", nil
+	case <-c.aliveC:
+		return "", nil
 	case result := <-waiter:
 		return result, nil
 	case <-time.After(timeout):

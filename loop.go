@@ -44,6 +44,10 @@ type Channel struct {
 	out    chan string
 	header Header
 
+	//is closed when no longer alive, useful when
+	//blocking in select and checking a bool isn't viable
+	aliveC chan struct{}
+
 	alive     bool
 	aliveLock sync.Mutex
 
@@ -68,6 +72,7 @@ func (c *Channel) initChannel() {
 	c.out = make(chan string, QueueBufferSize)
 	c.ack.resultWaiters = make(map[int](chan string))
 	c.alive = true
+	c.aliveC = make(chan struct{})
 }
 
 /**
@@ -93,34 +98,26 @@ func (c *Channel) sendOut(msg string) {
 	select {
 	case c.out <- msg:
 	case <-c.done:
-		return
+	case <-c.aliveC:
 	}
 }
 
 /**
 Close channel
 */
-func closeChannel(c *Channel, m *methods, args ...interface{}) error {
+func closeChannel(c *Channel, m *methods) {
 	c.aliveLock.Lock()
 	if !c.alive {
 		//already closed
 		c.aliveLock.Unlock()
-		return nil
+		return
 	}
 	c.conn.Close()
 	c.alive = false
+	close(c.aliveC)
 	c.aliveLock.Unlock()
 
-	//clean outloop
-	for len(c.out) > 0 {
-		<-c.out
-	}
-
-	c.sendOut(protocol.CloseMessage)
-
 	m.callLoopEvent(c, OnDisconnection)
-
-	return nil
 }
 
 //incoming messages loop, puts incoming messages to In channel
@@ -128,18 +125,20 @@ func inLoop(c *Channel, m *methods) error {
 	for {
 		pkg, err := c.conn.GetMessage()
 		if err != nil {
-			return closeChannel(c, m, err)
+			closeChannel(c, m)
+			return err
 		}
 		msg, err := protocol.Decode(pkg)
 		if err != nil {
-			closeChannel(c, m, protocol.ErrorWrongPacket)
+			closeChannel(c, m)
 			return err
 		}
 
 		switch msg.Type {
 		case protocol.MessageTypeOpen:
 			if err := json.Unmarshal([]byte(msg.Source[1:]), &c.header); err != nil {
-				closeChannel(c, m, ErrorWrongHeader)
+				closeChannel(c, m)
+				return err
 			}
 			m.callLoopEvent(c, OnConnection)
 		case protocol.MessageTypePing:
@@ -157,11 +156,14 @@ outgoing messages loop, sends messages from channel to socket
 func outLoop(c *Channel, m *methods) error {
 	for {
 		if len(c.out) >= QueueBufferSize-1 {
-			return closeChannel(c, m, ErrorSocketOverflood)
+			closeChannel(c, m)
+			return ErrorSocketOverflood
 		}
 
 		select {
 		case <-c.done:
+			return nil
+		case <-c.aliveC:
 			return nil
 		case msg := <-c.out:
 			if msg == protocol.CloseMessage {
@@ -170,7 +172,8 @@ func outLoop(c *Channel, m *methods) error {
 
 			err := c.conn.WriteMessage(msg)
 			if err != nil {
-				return closeChannel(c, m, err)
+				closeChannel(c, m)
+				return err
 			}
 		}
 	}
@@ -188,6 +191,8 @@ func pinger(c *Channel) {
 	for {
 		select {
 		case <-c.done:
+			return
+		case <-c.aliveC:
 			return
 		case <-ticker.C:
 			if !c.IsAlive() {
