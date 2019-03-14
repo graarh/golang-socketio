@@ -103,10 +103,6 @@ func closeChannel(c *Channel, m *methods, args ...interface{}) error {
 
 	m.callLoopEvent(c, OnDisconnection)
 
-	overfloodedLock.Lock()
-	delete(overflooded, c)
-	overfloodedLock.Unlock()
-
 	return nil
 }
 
@@ -138,32 +134,13 @@ func inLoop(c *Channel, m *methods) error {
 	}
 }
 
-var overflooded map[*Channel]struct{} = make(map[*Channel]struct{})
-var overfloodedLock sync.Mutex
-
-func AmountOfOverflooded() int64 {
-	overfloodedLock.Lock()
-	defer overfloodedLock.Unlock()
-
-	return int64(len(overflooded))
-}
-
 /**
 outgoing messages loop, sends messages from channel to socket
 */
 func outLoop(c *Channel, m *methods) error {
 	for {
-		outBufferLen := len(c.out)
-		if outBufferLen >= QueueBufferSize-1 {
+		if len(c.out) >= QueueBufferSize-1 {
 			return closeChannel(c, m, ErrorSocketOverflood)
-		} else if outBufferLen > int(QueueBufferSize/2) {
-			overfloodedLock.Lock()
-			overflooded[c] = struct{}{}
-			overfloodedLock.Unlock()
-		} else {
-			overfloodedLock.Lock()
-			delete(overflooded, c)
-			overfloodedLock.Unlock()
 		}
 
 		msg := <-c.out
