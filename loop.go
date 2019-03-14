@@ -52,6 +52,13 @@ type Channel struct {
 	server        *Server
 	ip            string
 	requestHeader http.Header
+
+	//an attempt to stop bad code from being bad
+	rh RecoveryHandler
+	eh ErrorHandler
+
+	//closed when Server is shutting down
+	done <-chan struct{}
 }
 
 /**
@@ -80,6 +87,16 @@ func (c *Channel) IsAlive() (alive bool) {
 	return
 }
 
+//safely sends a msg into 'out' chan so we don't block forever
+//if we're trying to exit
+func (c *Channel) sendOut(msg string) {
+	select {
+	case c.out <- msg:
+	case <-c.done:
+		return
+	}
+}
+
 /**
 Close channel
 */
@@ -98,7 +115,8 @@ func closeChannel(c *Channel, m *methods, args ...interface{}) error {
 	for len(c.out) > 0 {
 		<-c.out
 	}
-	c.out <- protocol.CloseMessage
+
+	c.sendOut(protocol.CloseMessage)
 
 	m.callLoopEvent(c, OnDisconnection)
 
@@ -125,7 +143,7 @@ func inLoop(c *Channel, m *methods) error {
 			}
 			m.callLoopEvent(c, OnConnection)
 		case protocol.MessageTypePing:
-			c.out <- protocol.PongMessage
+			c.sendOut(protocol.PongMessage)
 		case protocol.MessageTypePong:
 		default:
 			go m.processIncomingMessage(c, msg)
@@ -142,14 +160,18 @@ func outLoop(c *Channel, m *methods) error {
 			return closeChannel(c, m, ErrorSocketOverflood)
 		}
 
-		msg := <-c.out
-		if msg == protocol.CloseMessage {
+		select {
+		case <-c.done:
 			return nil
-		}
+		case msg := <-c.out:
+			if msg == protocol.CloseMessage {
+				return nil
+			}
 
-		err := c.conn.WriteMessage(msg)
-		if err != nil {
-			return closeChannel(c, m, err)
+			err := c.conn.WriteMessage(msg)
+			if err != nil {
+				return closeChannel(c, m, err)
+			}
 		}
 	}
 }
@@ -158,13 +180,21 @@ func outLoop(c *Channel, m *methods) error {
 Pinger sends ping messages for keeping connection alive
 */
 func pinger(c *Channel) {
-	for {
-		interval, _ := c.conn.PingParams()
-		time.Sleep(interval)
-		if !c.IsAlive() {
-			return
-		}
+	interval, _ := c.conn.PingParams()
 
-		c.out <- protocol.PingMessage
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.done:
+			return
+		case <-ticker.C:
+			if !c.IsAlive() {
+				return
+			}
+
+			c.sendOut(protocol.PingMessage)
+		}
 	}
 }

@@ -336,6 +336,9 @@ func (s *Server) SetupEventLoop(conn transport.Connection, remoteAddr string,
 
 	c.server = s
 	c.header = hdr
+	c.done = s.done
+	c.rh = s.rh
+	c.eh = s.eh
 
 	s.SendOpenSequence(c)
 
