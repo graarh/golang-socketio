@@ -73,11 +73,11 @@ func (c *Channel) Id() string {
 /**
 Checks that Channel is still alive
 */
-func (c *Channel) IsAlive() bool {
+func (c *Channel) IsAlive() (alive bool) {
 	c.aliveLock.Lock()
-	defer c.aliveLock.Unlock()
-
-	return c.alive
+	alive = c.alive
+	c.aliveLock.Unlock()
+	return
 }
 
 /**

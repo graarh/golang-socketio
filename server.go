@@ -259,9 +259,8 @@ On connection system handler, store sid
 */
 func onConnectStore(c *Channel) {
 	c.server.sidsLock.Lock()
-	defer c.server.sidsLock.Unlock()
-
 	c.server.sids[c.Id()] = c
+	c.server.sidsLock.Unlock()
 }
 
 /**
@@ -291,9 +290,8 @@ func onDisconnectCleanup(c *Channel) {
 
 func deleteSid(c *Channel) {
 	c.server.sidsLock.Lock()
-	defer c.server.sidsLock.Unlock()
-
 	delete(c.server.sids, c.Id())
+	c.server.sidsLock.Unlock()
 }
 
 func (s *Server) SendOpenSequence(c *Channel) {
