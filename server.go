@@ -272,7 +272,6 @@ On disconnection system handler, clean joins and sid
 */
 func onDisconnectCleanup(c *Channel) {
 	c.server.channelsLock.Lock()
-	defer c.server.channelsLock.Unlock()
 
 	cn := c.server.channels
 	byRoom, ok := c.server.rooms[c]
@@ -289,10 +288,8 @@ func onDisconnectCleanup(c *Channel) {
 		delete(c.server.rooms, c)
 	}
 
-	go deleteSid(c)
-}
+	c.server.channelsLock.Unlock()
 
-func deleteSid(c *Channel) {
 	c.server.sidsLock.Lock()
 	delete(c.server.sids, c.Id())
 	c.server.sidsLock.Unlock()
