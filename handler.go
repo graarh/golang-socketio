@@ -2,15 +2,15 @@ package gosocketio
 
 import (
 	"encoding/json"
-	"github.com/verticalops/golang-socketio/protocol"
-	"sync"
 	"reflect"
+	"sync"
+
+	"github.com/verticalops/golang-socketio/protocol"
 )
 
 const (
 	OnConnection    = "connection"
 	OnDisconnection = "disconnection"
-	OnError         = "error"
 )
 
 /**
