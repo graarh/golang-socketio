@@ -58,7 +58,6 @@ type Channel struct {
 create channel, map, and set active
 */
 func (c *Channel) initChannel() {
-	//TODO: queueBufferSize from constant to server or client variable
 	c.out = make(chan string, QueueBufferSize)
 	c.ack.resultWaiters = make(map[int](chan string))
 	c.alive = true

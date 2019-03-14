@@ -2,6 +2,7 @@ package gosocketio
 
 import (
 	"bytes"
+	"context"
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"math/rand"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/verticalops/golang-socketio/protocol"
@@ -40,6 +42,11 @@ type Server struct {
 	sidsLock sync.RWMutex
 
 	tr transport.Transport
+
+	//for graceful shutdown
+	done chan struct{}
+	//counting the number of goroutines we've spawned
+	count *int64
 }
 
 /**
@@ -381,6 +388,50 @@ func NewServer(tr transport.Transport) *Server {
 	s.sids = make(map[string]*Channel)
 	s.onConnection = onConnectStore
 	s.onDisconnection = onDisconnectCleanup
+	s.done = make(chan struct{})
+	s.count = new(int64)
 
 	return &s
+}
+
+//Functions for atomic counter
+func (s *Server) inc() { atomic.AddInt64(s.count, 1) }
+
+func (s *Server) dec() { atomic.AddInt64(s.count, -1) }
+
+func (s *Server) load() int64 { return atomic.LoadInt64(s.count) }
+
+/*
+Shutdown will shutdown the server gracefully by telling all interally spawned goroutines to exit.
+It does not force goroutines spawned by callbacks to exit. Shutdown is not safe to call concurrently.
+Shutdown may be called more than once from the same goroutine as it will only error if the passed context
+is finished before shutdown is complete.
+*/
+func (s *Server) Shutdown(ctx context.Context) error {
+	//This wont stop concurrent calls to shutdown from racing on channel close
+	//but it's good enough for repeated calls from the same goroutine.
+	select {
+	case <-s.done:
+	default:
+		close(s.done)
+	}
+
+	done := ctx.Done()
+
+	//Unfortunate but simple to add here without a greater rewrite, poll to check if goroutines are done.
+	//Similar to http.Server.Shutdown.
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-done:
+			return fmt.Errorf("gosocketio.Server.Shutdown: Server left with running goroutines: %d (%v)", s.load(), ctx.Err())
+		case <-ticker.C:
+			//Return error if we end up below zero?
+			if s.load() <= 0 {
+				return nil
+			}
+		}
+	}
 }
