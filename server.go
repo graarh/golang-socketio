@@ -1,7 +1,6 @@
 package gosocketio
 
 import (
-	"bytes"
 	"context"
 	"crypto/md5"
 	"encoding/base64"
@@ -250,12 +249,8 @@ Generate new id for socket.io connection
 */
 func generateNewId(custom string) string {
 	hash := fmt.Sprintf("%s %s %d %d", custom, time.Now(), rand.Uint32(), rand.Uint32())
-	buf := bytes.NewBuffer(nil)
 	sum := md5.Sum([]byte(hash))
-	encoder := base64.NewEncoder(base64.URLEncoding, buf)
-	encoder.Write(sum[:])
-	encoder.Close()
-	return buf.String()[:20]
+	return base64.URLEncoding.EncodeToString(sum[:])[:20]
 }
 
 /**
