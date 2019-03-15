@@ -2,20 +2,25 @@ package transport
 
 import (
 	"errors"
-	"github.com/gorilla/websocket"
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 const (
-	upgradeFailed     = "Upgrade failed: "
+	upgradeFailed = "Upgrade failed: "
 
-	WsDefaultPingInterval   = 30 * time.Second
-	WsDefaultPingTimeout    = 60 * time.Second
-	WsDefaultReceiveTimeout = 60 * time.Second
-	WsDefaultSendTimeout    = 60 * time.Second
-	WsDefaultBufferSize     = 1024 * 32
+	WsDefaultPingInterval     = 30 * time.Second
+	WsDefaultPingTimeout      = 60 * time.Second
+	WsDefaultReceiveTimeout   = 60 * time.Second
+	WsDefaultSendTimeout      = 60 * time.Second
+	WsDefaultHandshakeTimeout = 4 * time.Second
+
+	//WsDefaultBufferSize of 0 means the underlying websocket connection will reuse buffers
+	//provided by net/http. It does not limit the size of socketio messages.
+	WsDefaultBufferSize = 0
 )
 
 var (
@@ -45,7 +50,7 @@ func (wsc *WebsocketConnection) GetMessage() (message string, err error) {
 
 	data, err := ioutil.ReadAll(reader)
 	if err != nil {
-		return "", ErrorBadBuffer
+		return "", err
 	}
 	text := string(data)
 
@@ -59,18 +64,8 @@ func (wsc *WebsocketConnection) GetMessage() (message string, err error) {
 
 func (wsc *WebsocketConnection) WriteMessage(message string) error {
 	wsc.socket.SetWriteDeadline(time.Now().Add(wsc.transport.SendTimeout))
-	writer, err := wsc.socket.NextWriter(websocket.TextMessage)
-	if err != nil {
-		return err
-	}
 
-	if _, err := writer.Write([]byte(message)); err != nil {
-		return err
-	}
-	if err := writer.Close(); err != nil {
-		return err
-	}
-	return nil
+	return wsc.socket.WriteMessage(websocket.TextMessage, []byte(message))
 }
 
 func (wsc *WebsocketConnection) Close() {
@@ -82,12 +77,13 @@ func (wsc *WebsocketConnection) PingParams() (interval, timeout time.Duration) {
 }
 
 type WebsocketTransport struct {
+	//Upgrader used to upgrade all connections, must be non-nil
+	Upgrader *websocket.Upgrader
+
 	PingInterval   time.Duration
 	PingTimeout    time.Duration
 	ReceiveTimeout time.Duration
 	SendTimeout    time.Duration
-
-	BufferSize int
 
 	RequestHeader http.Header
 }
@@ -110,7 +106,7 @@ func (wst *WebsocketTransport) HandleConnection(
 		return nil, ErrorMethodNotAllowed
 	}
 
-	socket, err := websocket.Upgrade(w, r, nil, wst.BufferSize, wst.BufferSize)
+	socket, err := wst.Upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		http.Error(w, upgradeFailed+err.Error(), 503)
 		return nil, ErrorHttpUpgradeFailed
@@ -133,6 +129,8 @@ func GetDefaultWebsocketTransport() *WebsocketTransport {
 		PingTimeout:    WsDefaultPingTimeout,
 		ReceiveTimeout: WsDefaultReceiveTimeout,
 		SendTimeout:    WsDefaultSendTimeout,
-		BufferSize:     WsDefaultBufferSize,
+		Upgrader: &websocket.Upgrader{
+			HandshakeTimeout: WsDefaultHandshakeTimeout,
+		},
 	}
 }
