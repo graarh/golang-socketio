@@ -341,7 +341,7 @@ func (s *Server) SetupEventLoop(conn transport.Connection, remoteAddr string,
 	c.rh = s.rh
 	c.eh = s.eh
 
-	go outLoop(c, &s.methods)
+	c.startLoop(&s.methods, c.outLoop)
 
 	if err := s.SendOpenSequence(c); err != nil {
 		s.eh.call(err)
@@ -349,7 +349,7 @@ func (s *Server) SetupEventLoop(conn transport.Connection, remoteAddr string,
 		return
 	}
 
-	go inLoop(c, &s.methods)
+	c.startLoop(&s.methods, c.inLoop)
 
 	s.callLoopEvent(c, OnConnection)
 }
@@ -414,7 +414,8 @@ func (s *Server) inc() { atomic.AddInt64(s.count, 1) }
 
 func (s *Server) dec() { atomic.AddInt64(s.count, -1) }
 
-func (s *Server) load() int64 { return atomic.LoadInt64(s.count) }
+//NumGoroutine returns the number of goroutines spawned by the server or its Channels.
+func (s *Server) NumGoroutine() int64 { return atomic.LoadInt64(s.count) }
 
 /*
 Shutdown will shutdown the server gracefully by telling all interally spawned goroutines to exit.
@@ -441,10 +442,10 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	for {
 		select {
 		case <-done:
-			return fmt.Errorf("gosocketio.Server.Shutdown: Server left with running goroutines: %d (%v)", s.load(), ctx.Err())
+			return fmt.Errorf("gosocketio.Server.Shutdown: Server left with running goroutines: %d (%v)", s.NumGoroutine(), ctx.Err())
 		case <-ticker.C:
 			//Return error if we end up below zero?
-			if s.load() <= 0 {
+			if s.NumGoroutine() <= 0 {
 				return nil
 			}
 		}

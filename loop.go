@@ -120,8 +120,23 @@ func closeChannel(c *Channel, m *methods) {
 	m.callLoopEvent(c, OnDisconnection)
 }
 
+//start server side channel loops, not client side ones
+func (c *Channel) startLoop(m *methods, loop func(*methods) error) {
+	c.server.inc()
+
+	go func() {
+		defer c.server.dec()
+
+		if err := loop(m); err != nil {
+			c.eh.call(err)
+		}
+	}()
+}
+
 //incoming messages loop, puts incoming messages to In channel
-func inLoop(c *Channel, m *methods) error {
+func (c *Channel) inLoop(m *methods) error {
+	defer c.rh.call(c)
+
 	for {
 		pkg, err := c.conn.GetMessage()
 		if err != nil {
@@ -153,7 +168,9 @@ func inLoop(c *Channel, m *methods) error {
 /**
 outgoing messages loop, sends messages from channel to socket
 */
-func outLoop(c *Channel, m *methods) error {
+func (c *Channel) outLoop(m *methods) error {
+	defer c.rh.call(c)
+
 	for {
 		if len(c.out) >= QueueBufferSize-1 {
 			closeChannel(c, m)
@@ -166,12 +183,8 @@ func outLoop(c *Channel, m *methods) error {
 		case <-c.aliveC:
 			return nil
 		case msg := <-c.out:
-			if msg == protocol.CloseMessage {
-				return nil
-			}
 
-			err := c.conn.WriteMessage(msg)
-			if err != nil {
+			if err := c.conn.WriteMessage(msg); err != nil {
 				closeChannel(c, m)
 				return err
 			}
