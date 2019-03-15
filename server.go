@@ -366,6 +366,7 @@ implements ServeHTTP function from http.Handler
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn, err := s.tr.HandleConnection(w, r)
 	if err != nil {
+		s.eh.call(err)
 		return
 	}
 
