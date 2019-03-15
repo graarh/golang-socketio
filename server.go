@@ -24,6 +24,8 @@ const (
 var (
 	ErrorServerNotSet       = errors.New("Server not set")
 	ErrorConnectionNotFound = errors.New("Connection not found")
+
+	ErrRateLimiting = errors.New("gosocketio: Rate limiting reached, a message was dropped")
 )
 
 /**
@@ -45,6 +47,9 @@ type Server struct {
 	//an attempt to stop bad code from being bad
 	rh RecoveryHandler
 	eh ErrorHandler
+
+	//for rate limiting
+	limit int
 
 	//for graceful shutdown
 	done chan struct{}
@@ -340,6 +345,7 @@ func (s *Server) SetupEventLoop(conn transport.Connection, remoteAddr string,
 	c.done = s.done
 	c.rh = s.rh
 	c.eh = s.eh
+	c.rl = newRateLimiter(c, s.limit)
 
 	c.startLoop(&s.methods, c.outLoop)
 

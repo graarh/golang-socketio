@@ -61,6 +61,9 @@ type Channel struct {
 	rh RecoveryHandler
 	eh ErrorHandler
 
+	//for rate limiting
+	rl rateLimiter
+
 	//closed when Server is shutting down
 	done <-chan struct{}
 }
@@ -160,7 +163,7 @@ func (c *Channel) inLoop(m *methods) error {
 			c.sendOut(protocol.PongMessage)
 		case protocol.MessageTypePong:
 		default:
-			go m.processIncomingMessage(c, msg)
+			c.rl(func() { m.processIncomingMessage(c, msg) })
 		}
 	}
 }
