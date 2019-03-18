@@ -49,7 +49,7 @@ type Server struct {
 	eh ErrorHandler
 
 	//for rate limiting
-	limit int
+	limit *int
 
 	//for graceful shutdown
 	done chan struct{}
@@ -345,7 +345,7 @@ func (s *Server) SetupEventLoop(conn transport.Connection, remoteAddr string,
 	c.done = s.done
 	c.rh = s.rh
 	c.eh = s.eh
-	c.rl = newRateLimiter(c, s.limit)
+	c.rl = newRateLimiter(c, *s.limit)
 
 	c.startLoop(&s.methods, c.outLoop)
 
@@ -409,11 +409,19 @@ func NewServer(tr transport.Transport, opts ...ServerOption) *Server {
 	s.done = make(chan struct{})
 	s.count = new(int64)
 
+	srv := &s
 	for _, opt := range opts {
-		opt(&s)
+		opt(srv)
 	}
 
-	return &s
+	//check if 'limit' was set, if it wasn't we need to make sure we abide by the old behavior
+	//of 'unlimited' goroutines per Channel messages
+	if srv.limit == nil {
+		ul := -1
+		srv.limit = &ul
+	}
+
+	return srv
 }
 
 //Functions for atomic counter

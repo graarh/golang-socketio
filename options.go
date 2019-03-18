@@ -71,7 +71,7 @@ func WithErrorHandler(eh ErrorHandler) ServerOption {
 //with ErrRateLimiting. Once a goroutine servicing user code is done the limit will reduce allowing more to be run.
 func WithRateLimiter(limit int) ServerOption {
 	return func(s *Server) {
-		s.limit = limit
+		s.limit = &limit
 	}
 }
 
