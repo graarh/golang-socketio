@@ -143,8 +143,14 @@ func (c *Channel) inLoop(m *methods) error {
 	for {
 		pkg, err := c.conn.GetMessage()
 		if err != nil {
-			closeChannel(c, m)
-			return err
+			select {
+			case <-c.done:
+			case <-c.aliveC:
+			default:
+				closeChannel(c, m)
+				return err
+			}
+			return nil
 		}
 		msg, err := protocol.Decode(pkg)
 		if err != nil {
@@ -182,6 +188,7 @@ func (c *Channel) outLoop(m *methods) error {
 
 		select {
 		case <-c.done:
+			closeChannel(c, m)
 			return nil
 		case <-c.aliveC:
 			return nil
