@@ -44,6 +44,7 @@ You can use GetUrlByHost for generating correct url
 func Dial(url string, tr transport.Transport) (*Client, error) {
 	c := &Client{}
 	c.initChannel()
+	c.rl = func(work func()) { go work() }
 	c.initMethods()
 
 	var err error
