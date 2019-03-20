@@ -3,18 +3,19 @@ package gosocketio
 import (
 	"encoding/json"
 	"errors"
-	"github.com/verticalops/golang-socketio/protocol"
-	"github.com/verticalops/golang-socketio/transport"
 	"net/http"
 	"sync"
 	"time"
-)
 
-const (
-	queueBufferSize = 500
+	"github.com/verticalops/golang-socketio/protocol"
+	"github.com/verticalops/golang-socketio/transport"
 )
 
 var (
+	//QueueBufferSize is the global buffer size for all internal channels and messages.
+	//It should only be changed before using anything from this package and cannot be changed concurrently.
+	QueueBufferSize = 50
+
 	ErrorWrongHeader = errors.New("Wrong header")
 )
 
@@ -43,6 +44,10 @@ type Channel struct {
 	out    chan string
 	header Header
 
+	//is closed when no longer alive, useful when
+	//blocking in select and checking a bool isn't viable
+	aliveC chan struct{}
+
 	alive     bool
 	aliveLock sync.Mutex
 
@@ -51,16 +56,26 @@ type Channel struct {
 	server        *Server
 	ip            string
 	requestHeader http.Header
+
+	//an attempt to stop bad code from being bad
+	rh RecoveryHandler
+	eh ErrorHandler
+
+	//for rate limiting
+	rl rateLimiter
+
+	//closed when Server is shutting down
+	done <-chan struct{}
 }
 
 /**
 create channel, map, and set active
 */
 func (c *Channel) initChannel() {
-	//TODO: queueBufferSize from constant to server or client variable
-	c.out = make(chan string, queueBufferSize)
+	c.out = make(chan string, QueueBufferSize)
 	c.ack.resultWaiters = make(map[int](chan string))
 	c.alive = true
+	c.aliveC = make(chan struct{})
 }
 
 /**
@@ -73,123 +88,141 @@ func (c *Channel) Id() string {
 /**
 Checks that Channel is still alive
 */
-func (c *Channel) IsAlive() bool {
+func (c *Channel) IsAlive() (alive bool) {
 	c.aliveLock.Lock()
-	defer c.aliveLock.Unlock()
+	alive = c.alive
+	c.aliveLock.Unlock()
+	return
+}
 
-	return c.alive
+//safely sends a msg into 'out' chan so we don't block forever
+//if we're trying to exit
+func (c *Channel) sendOut(msg string) {
+	select {
+	case c.out <- msg:
+	case <-c.done:
+	case <-c.aliveC:
+	}
 }
 
 /**
 Close channel
 */
-func closeChannel(c *Channel, m *methods, args ...interface{}) error {
+func closeChannel(c *Channel, m *methods) {
 	c.aliveLock.Lock()
 	if !c.alive {
 		//already closed
 		c.aliveLock.Unlock()
-		return nil
+		return
 	}
 	c.conn.Close()
 	c.alive = false
+	close(c.aliveC)
 	c.aliveLock.Unlock()
 
-	//clean outloop
-	for len(c.out) > 0 {
-		<-c.out
-	}
-	c.out <- protocol.CloseMessage
-
 	m.callLoopEvent(c, OnDisconnection)
+}
 
-	overfloodedLock.Lock()
-	delete(overflooded, c)
-	overfloodedLock.Unlock()
+//start server side channel loops, not client side ones
+func (c *Channel) startLoop(m *methods, loop func(*methods) error) {
+	c.server.inc()
 
-	return nil
+	go func() {
+		defer c.server.dec()
+
+		if err := loop(m); err != nil {
+			c.eh.call(err)
+		}
+	}()
 }
 
 //incoming messages loop, puts incoming messages to In channel
-func inLoop(c *Channel, m *methods) error {
+func (c *Channel) inLoop(m *methods) error {
+	defer c.rh.call(c)
+
 	for {
 		pkg, err := c.conn.GetMessage()
 		if err != nil {
-			return closeChannel(c, m, err)
+			select {
+			case <-c.done:
+			case <-c.aliveC:
+			default:
+				closeChannel(c, m)
+				return err
+			}
+			return nil
 		}
 		msg, err := protocol.Decode(pkg)
 		if err != nil {
-			closeChannel(c, m, protocol.ErrorWrongPacket)
+			closeChannel(c, m)
 			return err
 		}
 
 		switch msg.Type {
 		case protocol.MessageTypeOpen:
 			if err := json.Unmarshal([]byte(msg.Source[1:]), &c.header); err != nil {
-				closeChannel(c, m, ErrorWrongHeader)
+				closeChannel(c, m)
+				return err
 			}
 			m.callLoopEvent(c, OnConnection)
 		case protocol.MessageTypePing:
-			c.out <- protocol.PongMessage
+			c.sendOut(protocol.PongMessage)
 		case protocol.MessageTypePong:
 		default:
-			go m.processIncomingMessage(c, msg)
+			c.rl(func() { m.processIncomingMessage(c, msg) })
 		}
 	}
-	return nil
-}
-
-var overflooded map[*Channel]struct{} = make(map[*Channel]struct{})
-var overfloodedLock sync.Mutex
-
-func AmountOfOverflooded() int64 {
-	overfloodedLock.Lock()
-	defer overfloodedLock.Unlock()
-
-	return int64(len(overflooded))
 }
 
 /**
 outgoing messages loop, sends messages from channel to socket
 */
-func outLoop(c *Channel, m *methods) error {
+func (c *Channel) outLoop(m *methods) error {
+	defer c.rh.call(c)
+
 	for {
-		outBufferLen := len(c.out)
-		if outBufferLen >= queueBufferSize-1 {
-			return closeChannel(c, m, ErrorSocketOverflood)
-		} else if outBufferLen > int(queueBufferSize/2) {
-			overfloodedLock.Lock()
-			overflooded[c] = struct{}{}
-			overfloodedLock.Unlock()
-		} else {
-			overfloodedLock.Lock()
-			delete(overflooded, c)
-			overfloodedLock.Unlock()
+		if len(c.out) >= QueueBufferSize-1 {
+			closeChannel(c, m)
+			return ErrorSocketOverflood
 		}
 
-		msg := <-c.out
-		if msg == protocol.CloseMessage {
+		select {
+		case <-c.done:
+			closeChannel(c, m)
 			return nil
-		}
+		case <-c.aliveC:
+			return nil
+		case msg := <-c.out:
 
-		err := c.conn.WriteMessage(msg)
-		if err != nil {
-			return closeChannel(c, m, err)
+			if err := c.conn.WriteMessage(msg); err != nil {
+				closeChannel(c, m)
+				return err
+			}
 		}
 	}
-	return nil
 }
 
 /**
 Pinger sends ping messages for keeping connection alive
 */
 func pinger(c *Channel) {
-	for {
-		interval, _ := c.conn.PingParams()
-		time.Sleep(interval)
-		if !c.IsAlive() {
-			return
-		}
+	interval, _ := c.conn.PingParams()
 
-		c.out <- protocol.PingMessage
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.done:
+			return
+		case <-c.aliveC:
+			return
+		case <-ticker.C:
+			if !c.IsAlive() {
+				return
+			}
+
+			c.sendOut(protocol.PingMessage)
+		}
 	}
 }

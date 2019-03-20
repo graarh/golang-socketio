@@ -2,15 +2,16 @@ package gosocketio
 
 import (
 	"encoding/json"
-	"github.com/verticalops/golang-socketio/protocol"
-	"sync"
+	"fmt"
 	"reflect"
+	"sync"
+
+	"github.com/verticalops/golang-socketio/protocol"
 )
 
 const (
 	OnConnection    = "connection"
 	OnDisconnection = "disconnection"
-	OnError         = "error"
 )
 
 /**
@@ -46,8 +47,8 @@ func (m *methods) On(method string, f interface{}) error {
 	}
 
 	m.messageHandlersLock.Lock()
-	defer m.messageHandlersLock.Unlock()
 	m.messageHandlers[method] = c
+	m.messageHandlersLock.Unlock()
 
 	return nil
 }
@@ -73,6 +74,7 @@ func (m *methods) callLoopEvent(c *Channel, event string) {
 
 	f, ok := m.findMethod(event)
 	if !ok {
+		c.eh.call(fmt.Errorf("gosocketio.methods.callLoopEvent: Unable to find method for event: %s", event))
 		return
 	}
 
@@ -86,10 +88,13 @@ On ack_req - look for processing function and send ack_resp
 On emit - look for processing function
 */
 func (m *methods) processIncomingMessage(c *Channel, msg *protocol.Message) {
+	defer c.rh.call(c)
+
 	switch msg.Type {
 	case protocol.MessageTypeEmit:
 		f, ok := m.findMethod(msg.Method)
 		if !ok {
+			c.eh.call(fmt.Errorf("gosocketio.methods.processIncomingMessage: Unable to find method for message: %+v", msg))
 			return
 		}
 
@@ -101,6 +106,7 @@ func (m *methods) processIncomingMessage(c *Channel, msg *protocol.Message) {
 		data := f.getArgs()
 		err := json.Unmarshal([]byte(msg.Args), &data)
 		if err != nil {
+			c.eh.call(err)
 			return
 		}
 
@@ -109,6 +115,7 @@ func (m *methods) processIncomingMessage(c *Channel, msg *protocol.Message) {
 	case protocol.MessageTypeAckRequest:
 		f, ok := m.findMethod(msg.Method)
 		if !ok || !f.Out {
+			c.eh.call(fmt.Errorf("gosocketio.methods.processIncomingMessage: Unable to find method for message: %+v", msg))
 			return
 		}
 
@@ -118,6 +125,7 @@ func (m *methods) processIncomingMessage(c *Channel, msg *protocol.Message) {
 			data := f.getArgs()
 			err := json.Unmarshal([]byte(msg.Args), &data)
 			if err != nil {
+				c.eh.call(err)
 				return
 			}
 
@@ -130,12 +138,22 @@ func (m *methods) processIncomingMessage(c *Channel, msg *protocol.Message) {
 			Type:  protocol.MessageTypeAckResponse,
 			AckId: msg.AckId,
 		}
-		send(ack, c, result[0].Interface())
+
+		if err := send(ack, c, result[0].Interface()); err != nil {
+			c.eh.call(err)
+		}
 
 	case protocol.MessageTypeAckResponse:
 		waiter, err := c.ack.getWaiter(msg.AckId)
-		if err == nil {
-			waiter <- msg.Args
+		if err != nil {
+			c.eh.call(err)
+			break
+		}
+
+		select {
+		case waiter <- msg.Args:
+		case <-c.done:
+		case <-c.aliveC:
 		}
 	}
 }

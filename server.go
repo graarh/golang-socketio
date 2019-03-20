@@ -1,18 +1,20 @@
 package gosocketio
 
 import (
-	"bytes"
+	"context"
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/verticalops/golang-socketio/protocol"
-	"github.com/verticalops/golang-socketio/transport"
 	"math/rand"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"github.com/verticalops/golang-socketio/protocol"
+	"github.com/verticalops/golang-socketio/transport"
 )
 
 const (
@@ -22,6 +24,8 @@ const (
 var (
 	ErrorServerNotSet       = errors.New("Server not set")
 	ErrorConnectionNotFound = errors.New("Connection not found")
+
+	ErrRateLimiting = errors.New("gosocketio: Rate limiting reached, a message was dropped")
 )
 
 /**
@@ -39,11 +43,23 @@ type Server struct {
 	sidsLock sync.RWMutex
 
 	tr transport.Transport
+
+	//an attempt to stop bad code from being bad
+	rh RecoveryHandler
+	eh ErrorHandler
+
+	//for rate limiting
+	limit *int
+
+	//for graceful shutdown
+	done chan struct{}
+	//counting the number of goroutines we've spawned
+	count *int64
 }
 
 /**
 Close current channel
- */
+*/
 func (c *Channel) Close() {
 	if c.server != nil {
 		closeChannel(c, &c.server.methods)
@@ -237,13 +253,9 @@ func (s *Server) BroadcastToAll(method string, args interface{}) {
 Generate new id for socket.io connection
 */
 func generateNewId(custom string) string {
-	hash := fmt.Sprintf("%s %s %n %n", custom, time.Now(), rand.Uint32(), rand.Uint32())
-	buf := bytes.NewBuffer(nil)
+	hash := fmt.Sprintf("%s %s %d %d", custom, time.Now(), rand.Uint32(), rand.Uint32())
 	sum := md5.Sum([]byte(hash))
-	encoder := base64.NewEncoder(base64.URLEncoding, buf)
-	encoder.Write(sum[:])
-	encoder.Close()
-	return buf.String()[:20]
+	return base64.URLEncoding.EncodeToString(sum[:])[:20]
 }
 
 /**
@@ -251,9 +263,8 @@ On connection system handler, store sid
 */
 func onConnectStore(c *Channel) {
 	c.server.sidsLock.Lock()
-	defer c.server.sidsLock.Unlock()
-
 	c.server.sids[c.Id()] = c
+	c.server.sidsLock.Unlock()
 }
 
 /**
@@ -261,7 +272,6 @@ On disconnection system handler, clean joins and sid
 */
 func onDisconnectCleanup(c *Channel) {
 	c.server.channelsLock.Lock()
-	defer c.server.channelsLock.Unlock()
 
 	cn := c.server.channels
 	byRoom, ok := c.server.rooms[c]
@@ -278,30 +288,36 @@ func onDisconnectCleanup(c *Channel) {
 		delete(c.server.rooms, c)
 	}
 
-	go deleteSid(c)
-}
+	c.server.channelsLock.Unlock()
 
-func deleteSid(c *Channel) {
 	c.server.sidsLock.Lock()
-	defer c.server.sidsLock.Unlock()
-
 	delete(c.server.sids, c.Id())
+	c.server.sidsLock.Unlock()
 }
 
-func (s *Server) SendOpenSequence(c *Channel) {
+func (s *Server) SendOpenSequence(c *Channel) error {
 	jsonHdr, err := json.Marshal(&c.header)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	c.out <- protocol.MustEncode(
-		&protocol.Message{
-			Type: protocol.MessageTypeOpen,
-			Args: string(jsonHdr),
-		},
-	)
+	msg, err := protocol.Encode(&protocol.Message{
+		Type: protocol.MessageTypeOpen,
+		Args: string(jsonHdr),
+	})
+	if err != nil {
+		return err
+	}
 
-	c.out <- protocol.MustEncode(&protocol.Message{Type: protocol.MessageTypeEmpty})
+	c.sendOut(msg)
+
+	msg, err = protocol.Encode(&protocol.Message{Type: protocol.MessageTypeEmpty})
+	if err != nil {
+		return err
+	}
+
+	c.sendOut(msg)
+	return nil
 }
 
 /**
@@ -326,11 +342,20 @@ func (s *Server) SetupEventLoop(conn transport.Connection, remoteAddr string,
 
 	c.server = s
 	c.header = hdr
+	c.done = s.done
+	c.rh = s.rh
+	c.eh = s.eh
+	c.rl = newRateLimiter(c, *s.limit)
 
-	s.SendOpenSequence(c)
+	c.startLoop(&s.methods, c.outLoop)
 
-	go inLoop(c, &s.methods)
-	go outLoop(c, &s.methods)
+	if err := s.SendOpenSequence(c); err != nil {
+		s.eh.call(err)
+		closeChannel(c, &s.methods)
+		return
+	}
+
+	c.startLoop(&s.methods, c.inLoop)
 
 	s.callLoopEvent(c, OnConnection)
 }
@@ -341,6 +366,7 @@ implements ServeHTTP function from http.Handler
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn, err := s.tr.HandleConnection(w, r)
 	if err != nil {
+		s.eh.call(err)
 		return
 	}
 
@@ -371,7 +397,7 @@ func (s *Server) AmountOfRooms() int64 {
 /**
 Create new socket.io server
 */
-func NewServer(tr transport.Transport) *Server {
+func NewServer(tr transport.Transport, opts ...ServerOption) *Server {
 	s := Server{}
 	s.initMethods()
 	s.tr = tr
@@ -380,6 +406,63 @@ func NewServer(tr transport.Transport) *Server {
 	s.sids = make(map[string]*Channel)
 	s.onConnection = onConnectStore
 	s.onDisconnection = onDisconnectCleanup
+	s.done = make(chan struct{})
+	s.count = new(int64)
 
-	return &s
+	srv := &s
+	for _, opt := range opts {
+		opt(srv)
+	}
+
+	//check if 'limit' was set, if it wasn't we need to make sure we abide by the old behavior
+	//of 'unlimited' goroutines per Channel messages
+	if srv.limit == nil {
+		ul := -1
+		srv.limit = &ul
+	}
+
+	return srv
+}
+
+//Functions for atomic counter
+func (s *Server) inc() { atomic.AddInt64(s.count, 1) }
+
+func (s *Server) dec() { atomic.AddInt64(s.count, -1) }
+
+//NumGoroutine returns the number of goroutines spawned by the server or its Channels.
+func (s *Server) NumGoroutine() int64 { return atomic.LoadInt64(s.count) }
+
+/*
+Shutdown will shutdown the server gracefully by telling all interally spawned goroutines to exit.
+It does not force goroutines spawned by callbacks to exit. Shutdown is not safe to call concurrently.
+Shutdown may be called more than once from the same goroutine as it will only error if the passed context
+is finished before shutdown is complete.
+*/
+func (s *Server) Shutdown(ctx context.Context) error {
+	//This wont stop concurrent calls to shutdown from racing on channel close
+	//but it's good enough for repeated calls from the same goroutine.
+	select {
+	case <-s.done:
+	default:
+		close(s.done)
+	}
+
+	done := ctx.Done()
+
+	//Unfortunate but simple to add here without a greater rewrite, poll to check if goroutines are done.
+	//Similar to http.Server.Shutdown.
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-done:
+			return fmt.Errorf("gosocketio.Server.Shutdown: Server left with running goroutines: %d (%v)", s.NumGoroutine(), ctx.Err())
+		case <-ticker.C:
+			//Return error if we end up below zero?
+			if s.NumGoroutine() <= 0 {
+				return nil
+			}
+		}
+	}
 }

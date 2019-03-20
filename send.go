@@ -3,9 +3,9 @@ package gosocketio
 import (
 	"encoding/json"
 	"errors"
-	"github.com/verticalops/golang-socketio/protocol"
-	"log"
 	"time"
+
+	"github.com/verticalops/golang-socketio/protocol"
 )
 
 var (
@@ -18,11 +18,7 @@ Send message packet to socket
 */
 func send(msg *protocol.Message, c *Channel, args interface{}) error {
 	//preventing json/encoding "index out of range" panic
-	defer func() {
-		if r := recover(); r != nil {
-			log.Println("socket.io send panic: ", r)
-		}
-	}()
+	defer c.rh.call(c)
 
 	if args != nil {
 		json, err := json.Marshal(&args)
@@ -38,11 +34,11 @@ func send(msg *protocol.Message, c *Channel, args interface{}) error {
 		return err
 	}
 
-	if len(c.out) == queueBufferSize {
+	if len(c.out) == QueueBufferSize {
 		return ErrorSocketOverflood
 	}
 
-	c.out <- command
+	c.sendOut(command)
 
 	return nil
 }
@@ -78,6 +74,10 @@ func (c *Channel) Ack(method string, args interface{}, timeout time.Duration) (s
 	}
 
 	select {
+	case <-c.done:
+		return "", nil
+	case <-c.aliveC:
+		return "", nil
 	case result := <-waiter:
 		return result, nil
 	case <-time.After(timeout):
