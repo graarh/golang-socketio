@@ -68,7 +68,7 @@ func (wsc *WebsocketConnection) GetMessage() (message string, err error) {
 func (wsc *WebsocketConnection) WriteMessage(message string) error {
 	wsc.socket.SetWriteDeadline(time.Now().Add(wsc.transport.SendTimeout))
 	writer, err := wsc.socket.NextWriter(websocket.TextMessage)
-	message = message[1:]
+	message = message[:]
 	log.Println("write:", message)
 	if err != nil {
 		return err
