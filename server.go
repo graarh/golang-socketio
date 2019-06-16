@@ -193,7 +193,7 @@ func (s *Server) List(room string) []*Channel {
 
 }
 
-func (c *Channel) BroadcastTo(room, method string, args interface{}) {
+func (c *Channel) BroadcastTo(room, method string, args string) {
 	if c.server == nil {
 		return
 	}
@@ -203,7 +203,7 @@ func (c *Channel) BroadcastTo(room, method string, args interface{}) {
 /**
 Broadcast message to all room channels
 */
-func (s *Server) BroadcastTo(room, method string, args interface{}) {
+func (s *Server) BroadcastTo(room, method string, args string) {
 	s.channelsLock.RLock()
 	defer s.channelsLock.RUnlock()
 
@@ -222,7 +222,7 @@ func (s *Server) BroadcastTo(room, method string, args interface{}) {
 /**
 Broadcast to all clients
 */
-func (s *Server) BroadcastToAll(method string, args interface{}) {
+func (s *Server) BroadcastToAll(method string, args string) {
 	s.sidsLock.RLock()
 	defer s.sidsLock.RUnlock()
 

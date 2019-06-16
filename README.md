@@ -30,7 +30,7 @@ Examples directory contains simple client and server.
 	}
 
 	//handle custom event
-	server.On("send", func(c *gosocketio.Channel, msg Message) string {
+	server.On("send", func(c *gosocketio.Channel, msg string) string {
 		//send event to all in room
 		c.BroadcastTo("chat", "message", msg)
 		return "OK"
@@ -77,7 +77,7 @@ var socket = io('ws://yourdomain.com', {transports: ['websocket']});
 	// --- caller is default handlers
 
 	//on connection handler, occurs once for each connected client
-	server.On(gosocketio.OnConnection, func(c *gosocketio.Channel, args interface{}) {
+	server.On(gosocketio.OnConnection, func(c *gosocketio.Channel, args string) {
 	    //client id is unique
 		log.Println("New client connected, client id is ", c.Id())
 
