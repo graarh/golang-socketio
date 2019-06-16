@@ -1,9 +1,8 @@
 package gosocketio
 
 import (
-	"encoding/json"
 	"errors"
-	"github.com/graarh/golang-socketio/protocol"
+	"github.com/moliqingwa/golang-socketio/protocol"
 	"log"
 	"time"
 )
@@ -16,7 +15,7 @@ var (
 /**
 Send message packet to socket
 */
-func send(msg *protocol.Message, c *Channel, args interface{}) error {
+func send(msg *protocol.Message, c *Channel, args string) error {
 	//preventing json/encoding "index out of range" panic
 	defer func() {
 		if r := recover(); r != nil {
@@ -24,13 +23,8 @@ func send(msg *protocol.Message, c *Channel, args interface{}) error {
 		}
 	}()
 
-	if args != nil {
-		json, err := json.Marshal(&args)
-		if err != nil {
-			return err
-		}
-
-		msg.Args = string(json)
+	if args != "" {
+		msg.Args = args
 	}
 
 	command, err := protocol.Encode(msg)
@@ -50,7 +44,7 @@ func send(msg *protocol.Message, c *Channel, args interface{}) error {
 /**
 Create packet based on given data and send it
 */
-func (c *Channel) Emit(method string, args interface{}) error {
+func (c *Channel) Emit(method string, args string) error {
 	msg := &protocol.Message{
 		Type:   protocol.MessageTypeEmit,
 		Method: method,
@@ -62,7 +56,7 @@ func (c *Channel) Emit(method string, args interface{}) error {
 /**
 Create ack packet based on given data and send it and receive response
 */
-func (c *Channel) Ack(method string, args interface{}, timeout time.Duration) (string, error) {
+func (c *Channel) Ack(method string, args string, timeout time.Duration) (string, error) {
 	msg := &protocol.Message{
 		Type:   protocol.MessageTypeAckRequest,
 		AckId:  c.ack.getNextId(),

@@ -1,10 +1,10 @@
 package gosocketio
 
 import (
-	"encoding/json"
-	"github.com/graarh/golang-socketio/protocol"
-	"sync"
+	"github.com/moliqingwa/golang-socketio/protocol"
+	"log"
 	"reflect"
+	"sync"
 )
 
 const (
@@ -27,6 +27,8 @@ type methods struct {
 
 	onConnection    systemHandler
 	onDisconnection systemHandler
+
+	serialize Serialize
 }
 
 /**
@@ -93,18 +95,19 @@ func (m *methods) processIncomingMessage(c *Channel, msg *protocol.Message) {
 			return
 		}
 
-		if !f.ArgsPresent {
+		if f.ArgsPresent {
+			data := f.getArgs()
+			err := m.serialize.Unmarshal([]byte(msg.Args), &data)
+			if err != nil {
+				return
+			}
+
+			f.callFunc(c, data)
+		} else {
 			f.callFunc(c, &struct{}{})
-			return
 		}
 
-		data := f.getArgs()
-		err := json.Unmarshal([]byte(msg.Args), &data)
-		if err != nil {
-			return
-		}
-
-		f.callFunc(c, data)
+		return
 
 	case protocol.MessageTypeAckRequest:
 		f, ok := m.findMethod(msg.Method)
@@ -116,7 +119,7 @@ func (m *methods) processIncomingMessage(c *Channel, msg *protocol.Message) {
 		if f.ArgsPresent {
 			//data type should be defined for unmarshall
 			data := f.getArgs()
-			err := json.Unmarshal([]byte(msg.Args), &data)
+			err := m.serialize.Unmarshal([]byte(msg.Args), &data)
 			if err != nil {
 				return
 			}
@@ -130,7 +133,17 @@ func (m *methods) processIncomingMessage(c *Channel, msg *protocol.Message) {
 			Type:  protocol.MessageTypeAckResponse,
 			AckId: msg.AckId,
 		}
-		send(ack, c, result[0].Interface())
+
+		res := result[0].Interface()
+		if res != nil {
+			if json, err := m.serialize.Marshal(&res); err == nil {
+				send(ack, c, string(json))
+			} else {
+				log.Fatalf("marshal failed, raw=%+v, err=%+v\n", res, err)
+			}
+		} else {
+			send(ack, c, "")
+		}
 
 	case protocol.MessageTypeAckResponse:
 		waiter, err := c.ack.getWaiter(msg.AckId)
