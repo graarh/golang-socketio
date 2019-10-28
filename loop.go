@@ -115,9 +115,11 @@ func closeChannel(c *Channel, m *methods) {
 		c.aliveLock.Unlock()
 		return
 	}
-	c.conn.Close()
-	c.alive = false
+
 	close(c.aliveC)
+	c.alive = false
+	c.conn.Close()
+
 	c.aliveLock.Unlock()
 
 	m.callLoopEvent(c, OnDisconnection)
@@ -195,8 +197,15 @@ func (c *Channel) outLoop(m *methods) error {
 		case msg := <-c.out:
 
 			if err := c.conn.WriteMessage(msg); err != nil {
-				closeChannel(c, m)
-				return err
+				select {
+				case <-c.aliveC:
+					//if the write fails and this case succeeds it's because the connection
+					//was closed out from under us, don't return an error
+					return nil
+				default:
+					closeChannel(c, m)
+					return err
+				}
 			}
 		}
 	}
