@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/verticalops/golang-socketio/protocol"
+	"github.com/VerticalOps/golang-socketio/protocol"
 )
 
 var (

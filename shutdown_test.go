@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	gosocketio "github.com/verticalops/golang-socketio"
-	"github.com/verticalops/golang-socketio/transport"
+	gosocketio "github.com/VerticalOps/golang-socketio"
+	"github.com/VerticalOps/golang-socketio/transport"
 )
 
 func TestStartupShutdown(t *testing.T) {

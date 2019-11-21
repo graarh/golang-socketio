@@ -13,8 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/verticalops/golang-socketio/protocol"
-	"github.com/verticalops/golang-socketio/transport"
+	"github.com/VerticalOps/golang-socketio/protocol"
+	"github.com/VerticalOps/golang-socketio/transport"
 )
 
 const (
