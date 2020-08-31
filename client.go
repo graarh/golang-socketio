@@ -17,6 +17,7 @@ Socket.io client representation
 type Client struct {
 	methods
 	Channel
+	url string
 }
 
 /**
@@ -40,7 +41,7 @@ ws://myserver.com/socket.io/?EIO=3&transport=websocket
 
 You can use GetUrlByHost for generating correct url
 */
-func Dial(url string, tr transport.Transport) (*Client, error) {
+func Dial(url string, tr transport.Transport,reconnect bool) (*Client, error) {
 	c := &Client{}
 	c.initChannel()
 	c.initMethods()
@@ -54,8 +55,30 @@ func Dial(url string, tr transport.Transport) (*Client, error) {
 	go inLoop(&c.Channel, &c.methods)
 	go outLoop(&c.Channel, &c.methods)
 	go pinger(&c.Channel)
-
+	if reconnect {
+		c.On(OnDisconnection, func(channel *Channel, msg interface{}) {
+			Redial(c)
+		})
+	}
 	return c, nil
+}
+
+func Redial(c *Client) {
+	var err error
+	tr := transport.GetDefaultWebsocketTransport()
+	c.initChannel()
+	for {
+		c.conn, err = tr.Connect(c.url)
+		if err == nil {
+			break
+		} else {
+			time.Sleep(time.Second)
+		}
+	}
+	go inLoop(&c.Channel, &c.methods)
+	go outLoop(&c.Channel, &c.methods)
+	go pinger(&c.Channel)
+	
 }
 
 /**
