@@ -149,11 +149,37 @@ var socket = io('ws://yourdomain.com', {transports: ['websocket']});
 		transport.GetDefaultWebsocketTransport(),
 	)
 
-	//do something, handlers and functions are same as server ones
+	//do something, handlers and functions are same as server ones. Example showing data poassed through and a switch on the data type being received.
+	_ = s.Client.On("callEventFromServer", func(c *gosocketio.Channel, j *interface{}) {
+
+		switch dataType := (*j).(type) {
+		case map[string]interface{}:
+			fmt.Println("received a map[string]interface:", dataType)
+		default:
+			fmt.Printf("Unknown data type received in websocket: %v   data: %v", dataType, *j)
+		}
+
+	})
+
+	_ = s.Client.On("getFaceCount", func(c *gosocketio.Channel) {
+		log.Printf("on getFaceCount with no message:\n")
+	})
 
 	//close connection
 	c.Close()
 ```
+
+To configure custom transport settings, like changing the default PingInterval:
+```
+	tr := transport.GetDefaultWebsocketTransport()
+	tr.PingInterval = 20 * time.Second
+
+	c, err := gosocketio.Dial(
+		connectionUrl,
+		tr,
+	)
+```
+
 
 ### Roadmap
 
